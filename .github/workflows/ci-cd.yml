@@ -1,0 +1,102 @@
+name: ETL Pipeline CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+  DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+jobs:
+  # ─── Stage 1: Lint Python Code ──────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install linting tools
+        run: pip install ruff
+
+      - name: Run ruff linter
+        run: |
+          # Lint all Python files extracted from notebooks
+          ruff check . --select E,F,W --ignore E402
+
+      - name: Run ruff formatter check
+        run: ruff format --check .
+
+  # ─── Stage 2: Validate DAB Bundle ────────────────────────
+  validate:
+    name: Validate Bundle
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Databricks CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/cli/main/install.sh | sh
+          echo "~/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure Databricks CLI
+        run: |
+          databricks --version
+          echo "Host: $DATABRICKS_HOST"
+
+      - name: Validate bundle (dev)
+        run: databricks bundle validate --strict --target dev
+
+      - name: Validate bundle (prod)
+        if: github.ref == 'refs/heads/main'
+        run: databricks bundle validate --strict --target prod
+
+  # ─── Stage 3: Deploy & Run (main branch only) ─────────────
+  deploy-and-run:
+    name: Deploy & Run ETL
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Databricks CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/cli/main/install.sh | sh
+          echo "~/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure Databricks CLI
+        run: echo "Databricks CLI configured for production deployment"
+
+      - name: Deploy bundle (prod)
+        run: databricks bundle deploy --target prod --auto-approve
+
+      - name: Run ETL pipeline
+        run: databricks bundle run etl_pipeline_job --target prod
+
+      - name: Notify on success
+        if: success()
+        run: echo "✅ ETL pipeline deployed and executed successfully!"
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "❌ ETL pipeline deployment or execution failed!"

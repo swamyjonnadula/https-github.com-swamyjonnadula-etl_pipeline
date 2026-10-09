@@ -1,0 +1,43 @@
+bundle:
+  name: etl_pipeline
+
+# Include all resource definition files
+include:
+  - resources/*.yml
+
+# Variables for parameterized deployment
+variables:
+  catalog:
+    description: Unity Catalog catalog name
+    default: workspace
+  schema:
+    description: Schema name for ETL output tables
+    default: default
+  table_name:
+    description: Target Delta table name
+    default: sales_delta
+  source_path:
+    description: Path to the source CSV file in UC volume
+    default: /Volumes/workspace/default/etl_source_data/sales_data.csv
+
+# Development target (default)
+targets:
+  dev:
+    default: true
+    mode: development
+    variables:
+      catalog: workspace
+      schema: default
+      table_name: sales_delta
+      source_path: /Volumes/workspace/default/etl_source_data/sales_data.csv
+
+  # Production target
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/swamyjonnadula4@gmail.com/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: workspace
+      schema: default
+      table_name: sales_delta
+      source_path: /Volumes/workspace/default/etl_source_data/sales_data.csv

@@ -1,0 +1,47 @@
+resources:
+  jobs:
+    etl_pipeline_job:
+      name: etl_pipeline_job
+      description: "End-to-end ETL pipeline: Extract CSV from volume, transform, load to Delta table"
+      tags:
+        project: etl_pipeline
+        environment: ${bundle.target}
+      tasks:
+        # Task 1: Run unit tests
+        - task_key: run_tests
+          notebook_task:
+            notebook_path: ../src/tests/test_transform.ipynb
+          job_cluster_key: etl_cluster
+
+        # Task 2: Run ETL pipeline (depends on tests passing)
+        - task_key: run_etl
+          depends_on:
+            - task_key: run_tests
+          notebook_task:
+            notebook_path: ../src/notebooks/main.ipynb
+            base_parameters:
+              source_path: ${var.source_path}
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              table_name: ${var.table_name}
+          job_cluster_key: etl_cluster
+
+      job_clusters:
+        - job_cluster_key: etl_cluster
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: "i3.xlarge"
+            num_workers: 1
+            data_security_mode: SINGLE_USER
+            runtime_engine: STANDARD
+
+      schedule:
+        quartz_cron_expression: "0 0 9 * * ?"
+        timezone_id: UTC
+        pause_status: PAUSED
+
+      email_notifications:
+        on_failure:
+          - ${workspace.current_user.userName}
+
+      max_concurrent_runs: 1

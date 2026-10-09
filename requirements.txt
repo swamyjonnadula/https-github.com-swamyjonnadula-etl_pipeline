@@ -1,0 +1,15 @@
+# Python dependencies for the ETL pipeline
+# These are used for local development and CI/CD testing.
+# Databricks runtime already includes PySpark.
+
+# Linting
+ruff>=0.6.0
+
+# Testing
+pytest>=8.0.0
+
+# Databricks SDK (for CI/CD automation)
+databricks-sdk>=0.30.0
+
+# Databricks CLI
+databricks-cli>=0.18.0
